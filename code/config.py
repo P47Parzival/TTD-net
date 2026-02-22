@@ -46,6 +46,10 @@ class Config_MBM_EEG(Config_MAE_fMRI):
         self.focus_range = None # [0, 1500] # None to disable it
         self.focus_rate = 0.6
 
+        # Encoder selection: 'vit' (original) or 'incept' (InceptSADNet)
+        self.encoder_type = 'incept'
+        self.in_chans = 64   # 64 for PhysioNet / Things-EEG
+
         # distributed training
         self.local_rank = 0
 
@@ -101,6 +105,10 @@ class Config_Generative_Model:
         self.depth = 24
         self.num_heads = 16
         self.mlp_ratio = 1.0
+
+        # Encoder selection: 'vit' (original) or 'incept' (InceptSADNet)
+        self.encoder_type = 'incept'
+        self.in_chans = 64   # 64 for PhysioNet / Things-EEG
 
         self.pretrain_gm_path = os.path.join(self.root_path, 'pretrains')
         

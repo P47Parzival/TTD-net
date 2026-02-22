@@ -11,8 +11,20 @@ from torchvision.utils import make_grid
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from sc_mbm.mae_for_eeg import eeg_encoder, classify_network, mapping 
+from sc_mbm.incept_encoder import InceptSADEncoder
 from PIL import Image
 def create_model_from_config(config, num_voxels, global_pool):
+    encoder_type = getattr(config, 'encoder_type', 'vit')
+    if encoder_type == 'incept':
+        model = InceptSADEncoder(
+            time_len=num_voxels,
+            in_chans=getattr(config, 'in_chans', 64),
+            embed_dim=config.embed_dim,
+            depth=config.depth,
+            num_heads=config.num_heads,
+            global_pool=global_pool,
+        )
+        return model
     model = eeg_encoder(time_len=num_voxels, patch_size=config.patch_size, embed_dim=config.embed_dim,
                 depth=config.depth, num_heads=config.num_heads, mlp_ratio=config.mlp_ratio, global_pool=global_pool) 
     return model

@@ -115,7 +115,7 @@ class eeg_pretrain_dataset(Dataset):
 
         assert len(self.input_paths) != 0, 'No data found'
         self.data_len  = 512
-        self.data_chan = 128
+        self.data_chan = 64  # 64 channels for PhysioNet / Things-EEG
 
     def __len__(self):
         return len(self.input_paths)
@@ -135,23 +135,23 @@ class eeg_pretrain_dataset(Dataset):
             f = interp1d(x, data)
             data = f(x2)
         ret = np.zeros((self.data_chan, self.data_len))
-        if (self.data_chan > data.shape[-2]):
-            for i in range((self.data_chan//data.shape[-2])):
-
-                ret[i * data.shape[-2]: (i+1) * data.shape[-2], :] = data
-            if self.data_chan % data.shape[-2] != 0:
-
-                ret[ -(self.data_chan%data.shape[-2]):, :] = data[: (self.data_chan%data.shape[-2]), :]
-        elif(self.data_chan < data.shape[-2]):
-            idx2 = np.random.randint(0, int(data.shape[-2] - self.data_chan)+1)
-            ret = data[idx2: idx2+self.data_chan, :]
-        # print(ret.shape)
-        elif(self.data_chan == data.shape[-2]):
+        n_chan_data = data.shape[-2]
+        if self.data_chan == n_chan_data:
             ret = data
-        ret = ret/10 # reduce an order
-        # torch.tensor()
+        elif self.data_chan > n_chan_data:
+            # tile channels to fill (e.g. 30-ch data → 64-ch target)
+            repeats = self.data_chan // n_chan_data
+            remainder = self.data_chan % n_chan_data
+            for i in range(repeats):
+                ret[i * n_chan_data: (i+1) * n_chan_data, :] = data
+            if remainder > 0:
+                ret[-(remainder):, :] = data[:remainder, :]
+        else:
+            # clamp: take first data_chan channels
+            ret = data[:self.data_chan, :]
+        ret = ret / 10  # reduce an order
         ret = torch.from_numpy(ret).float()
-        return {'eeg': ret } #,
+        return {'eeg': ret }
 
 
 
