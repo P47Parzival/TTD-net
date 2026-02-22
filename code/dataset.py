@@ -107,11 +107,13 @@ def is_npy_ext(fname: Union[str, Path]) -> bool:
 
 class eeg_pretrain_dataset(Dataset):
     def __init__(self, path='../dreamdiffusion/datasets/mne_data/', roi='VC', patch_size=16, transform=identity, aug_times=2, 
-                num_sub_limit=None, include_kam=False, include_hcp=True):
+                num_sub_limit=None, include_kam=False, include_hcp=True, limit=None):
         super(eeg_pretrain_dataset, self).__init__()
         data = []
         images = []
         self.input_paths = [str(f) for f in sorted(Path(path).rglob('*')) if is_npy_ext(f) and os.path.isfile(f)]
+        if limit is not None:
+            self.input_paths = self.input_paths[:limit]
 
         assert len(self.input_paths) != 0, 'No data found'
         self.data_len  = 512

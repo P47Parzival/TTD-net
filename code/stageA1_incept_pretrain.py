@@ -112,15 +112,19 @@ def main():
     np.random.seed(config.seed)
 
     # ── dataset ──
+    data_path = '../dreamdiffusion/datasets/mne_data' # Update this to your converted .npy folder
+    data_limit = 501  # Set to None to use full dataset when you have GPU
+    
     dataset = eeg_pretrain_dataset(
-        path='../dreamdiffusion/datasets/mne_data/',
+        path=data_path,
         roi=config.roi,
         patch_size=config.patch_size,
         transform=fmri_transform,
         aug_times=config.aug_times,
         num_sub_limit=config.num_sub_limit,
         include_kam=config.include_kam,
-        include_hcp=config.include_hcp
+        include_hcp=config.include_hcp,
+        limit=data_limit
     )
     print(f'Dataset size: {len(dataset)}, Time len: {dataset.data_len}')
     dataloader = DataLoader(dataset, batch_size=config.batch_size,
