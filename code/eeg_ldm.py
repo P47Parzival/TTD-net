@@ -15,6 +15,8 @@ import copy
 from config import Config_Generative_Model
 from dataset import  create_EEG_dataset
 from dc_ldm.ldm_for_eeg import eLDM
+from dc_ldm.sdxl_pipeline import EEGtoImageSDXL
+from sc_mbm.incept_encoder import InceptSADEncoder
 from eval_metrics import get_similarity_metric
 
 
@@ -150,27 +152,74 @@ def main(config):
     # print(num_voxels)
 
     # prepare pretrained mbm 
-
     pretrain_mbm_metafile = torch.load(config.pretrain_mbm_path, map_location='cpu')
 
-    # create generateive model
-    generative_model = eLDM(pretrain_mbm_metafile, num_voxels,
-                device=device, pretrain_root=config.pretrain_gm_path, logger=config.logger, 
-                ddim_steps=config.ddim_steps, global_pool=config.global_pool, use_time_cond=config.use_time_cond, clip_tune = config.clip_tune, cls_tune = config.cls_tune)
+    # ── Create generative model (SD 1.5 or SDXL) ──
+    model_type = getattr(config, 'model_type', 'sd15')
     
-    # resume training if applicable
-    if config.checkpoint_path is not None:
-        model_meta = torch.load(config.checkpoint_path, map_location='cpu')
-        generative_model.model.load_state_dict(model_meta['model_state_dict'])
-        print('model resumed')
-    # finetune the model
-    trainer = create_trainer(config.num_epoch, config.precision, config.accumulate_grad, config.logger, check_val_every_n_epoch=2)
-    generative_model.finetune(trainer, eeg_latents_dataset_train, eeg_latents_dataset_test,
-                config.batch_size, config.lr, config.output_path, config=config)
+    if model_type == 'sdxl':
+        # SDXL path: InceptSADEncoder + IPAdapterBridge + SDXL UNet
+        print("\n===== Using SDXL Pipeline =====")
+        encoder = InceptSADEncoder(
+            time_len=num_voxels,
+            in_chans=getattr(config, 'in_chans', 64),
+            embed_dim=config.embed_dim,
+            depth=config.depth,
+            num_heads=config.num_heads,
+            global_pool=config.global_pool,
+        )
+        
+        generative_model = EEGtoImageSDXL(
+            eeg_encoder=encoder,
+            device=device,
+            pretrain_root=config.pretrain_gm_path,
+            sdxl_model_id=getattr(config, 'sdxl_model_id', 'stabilityai/stable-diffusion-xl-base-1.0'),
+            ddim_steps=config.ddim_steps,
+            global_pool=config.global_pool,
+            use_clip_loss=config.clip_tune,
+            pretrained_encoder_weights=pretrain_mbm_metafile.get('model', None),
+        )
+        
+        # Resume if checkpoint exists
+        if config.checkpoint_path is not None:
+            ckpt = torch.load(config.checkpoint_path, map_location='cpu')
+            generative_model.cond_model.load_state_dict(ckpt['cond_model'])
+            generative_model.unet.load_state_dict(ckpt['unet'])
+            print('SDXL model resumed from checkpoint')
+        
+        # Fine-tune
+        generative_model.finetune(
+            eeg_latents_dataset_train, eeg_latents_dataset_test,
+            config, config.output_path
+        )
+        
+        # Generate images
+        grid, samples = generative_model.generate(
+            eeg_latents_dataset_test,
+            num_samples=config.num_samples,
+            ddim_steps=config.ddim_steps,
+            limit=50,
+            output_path=os.path.join(config.output_path, 'eval')
+        )
+    else:
+        # Original SD 1.5 path
+        print("\n===== Using SD 1.5 Pipeline =====")
+        generative_model = eLDM(pretrain_mbm_metafile, num_voxels,
+                    device=device, pretrain_root=config.pretrain_gm_path, logger=config.logger, 
+                    ddim_steps=config.ddim_steps, global_pool=config.global_pool, use_time_cond=config.use_time_cond, clip_tune = config.clip_tune, cls_tune = config.cls_tune)
+        
+        # resume training if applicable
+        if config.checkpoint_path is not None:
+            model_meta = torch.load(config.checkpoint_path, map_location='cpu')
+            generative_model.model.load_state_dict(model_meta['model_state_dict'])
+            print('model resumed')
+        # finetune the model
+        trainer = create_trainer(config.num_epoch, config.precision, config.accumulate_grad, config.logger, check_val_every_n_epoch=2)
+        generative_model.finetune(trainer, eeg_latents_dataset_train, eeg_latents_dataset_test,
+                    config.batch_size, config.lr, config.output_path, config=config)
 
-    # generate images
-    # generate limited train images and generate images for subjects seperately
-    generate_images(generative_model, eeg_latents_dataset_train, eeg_latents_dataset_test, config)
+        # generate images
+        generate_images(generative_model, eeg_latents_dataset_train, eeg_latents_dataset_test, config)
 
     return
 

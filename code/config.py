@@ -110,6 +110,12 @@ class Config_Generative_Model:
         self.encoder_type = 'incept'
         self.in_chans = 64   # 64 for PhysioNet / Things-EEG
 
+        # Diffusion model selection: 'sd15' (original) or 'sdxl'
+        self.model_type = 'sdxl'
+        self.sdxl_model_id = 'stabilityai/stable-diffusion-xl-base-1.0'
+        self.guidance_scale = 7.5
+        self.ip_adapter_num_tokens = 16  # resampled EEG tokens for bridge
+
         self.pretrain_gm_path = os.path.join(self.root_path, 'pretrains')
         
         self.dataset = 'EEG' 
@@ -135,7 +141,7 @@ class Config_Generative_Model:
 
         # diffusion sampling parameters
         self.num_samples = 5
-        self.ddim_steps = 250
+        self.ddim_steps = 25  # DPM++ only needs 25 steps (was 250 for PLMS)
         self.HW = None
         # resume check util
         self.model_meta = None
