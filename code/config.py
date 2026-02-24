@@ -116,6 +116,16 @@ class Config_Generative_Model:
         self.guidance_scale = 7.5
         self.ip_adapter_num_tokens = 16  # resampled EEG tokens for bridge
 
+        # Dataset selection: 'original' (EEG from eeg_5_95_std.pth) or 'things_eeg'
+        self.dataset_type = 'things_eeg'
+        # ThingsEEG paths (only used when dataset_type == 'things_eeg')
+        self.things_eeg_processed_dir = os.path.join(self.root_path, 'datasets/things_eeg_processed')
+        self.things_image_dir = os.path.join(self.root_path, 'datasets/object_images')
+        self.things_subjects = [1, 2, 3, 4, 5]  # Easy to scale up to 50
+        self.things_test_ratio = 0.1
+        self.things_n_channels = 63   # ThingsEEG has 63 EEG channels
+        self.things_time_len = 512    # Resampled epoch length
+
         self.pretrain_gm_path = os.path.join(self.root_path, 'pretrains')
         
         self.dataset = 'EEG' 
@@ -125,7 +135,11 @@ class Config_Generative_Model:
 
         np.random.seed(self.seed)
         # finetune parameters
-        self.batch_size = 5 if self.dataset == 'GOD' else 25
+        # Batch size: smaller for SDXL + ThingsEEG (512x512 images, 32GB VRAM)
+        if self.dataset_type == 'things_eeg' and self.model_type == 'sdxl':
+            self.batch_size = 4
+        else:
+            self.batch_size = 5 if self.dataset == 'GOD' else 25
         self.lr = 5.3e-5
         self.num_epoch = 500
         

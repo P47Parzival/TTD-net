@@ -14,6 +14,7 @@ import copy
 # own code
 from config import Config_Generative_Model
 from dataset import  create_EEG_dataset
+from things_dataset import create_things_dataset
 from dc_ldm.ldm_for_eeg import eLDM
 from dc_ldm.sdxl_pipeline import EEGtoImageSDXL
 from sc_mbm.incept_encoder import InceptSADEncoder
@@ -141,18 +142,43 @@ def main(config):
         channel_last
     ])
     if config.dataset == 'EEG':
-
-        eeg_latents_dataset_train, eeg_latents_dataset_test = create_EEG_dataset(eeg_signals_path = config.eeg_signals_path, splits_path = config.splits_path, 
-                image_transform=[img_transform_train, img_transform_test], subject = config.subject)
-        # eeg_latents_dataset_train, eeg_latents_dataset_test = create_EEG_dataset_viz( image_transform=[img_transform_train, img_transform_test])
-        num_voxels = eeg_latents_dataset_train.data_len
+        # ── Choose dataset source ──
+        dataset_type = getattr(config, 'dataset_type', 'original')
+        
+        if dataset_type == 'things_eeg':
+            # ThingsEEG preprocessed dataset
+            print("\n===== Loading ThingsEEG Dataset =====")
+            eeg_latents_dataset_train, eeg_latents_dataset_test = create_things_dataset(
+                processed_dir=config.things_eeg_processed_dir,
+                subjects=config.things_subjects,
+                image_size=config.img_size,
+                test_ratio=config.things_test_ratio,
+                seed=config.seed,
+                augment_train=True,
+                n_channels=config.things_n_channels,
+                time_len=config.things_time_len,
+            )
+            num_voxels = config.things_time_len
+            print(f"  Train: {len(eeg_latents_dataset_train)} samples")
+            print(f"  Test:  {len(eeg_latents_dataset_test)} samples")
+            print(f"  EEG shape: [{config.things_n_channels}, {num_voxels}]")
+        else:
+            # Original EEG dataset
+            eeg_latents_dataset_train, eeg_latents_dataset_test = create_EEG_dataset(
+                eeg_signals_path=config.eeg_signals_path,
+                splits_path=config.splits_path,
+                image_transform=[img_transform_train, img_transform_test],
+                subject=config.subject,
+            )
+            num_voxels = eeg_latents_dataset_train.data_len
 
     else:
         raise NotImplementedError
-    # print(num_voxels)
 
-    # prepare pretrained mbm 
-    pretrain_mbm_metafile = torch.load(config.pretrain_mbm_path, map_location='cpu')
+    # prepare pretrained mbm
+    pretrain_mbm_metafile = None
+    if config.pretrain_mbm_path is not None:
+        pretrain_mbm_metafile = torch.load(config.pretrain_mbm_path, map_location='cpu')
 
     # ── Create generative model (SD 1.5 or SDXL) ──
     model_type = getattr(config, 'model_type', 'sd15')
@@ -160,9 +186,13 @@ def main(config):
     if model_type == 'sdxl':
         # SDXL path: InceptSADEncoder + IPAdapterBridge + SDXL UNet
         print("\n===== Using SDXL Pipeline =====")
+        # Use correct channel count for the dataset
+        in_chans = getattr(config, 'things_n_channels', config.in_chans) \
+                   if getattr(config, 'dataset_type', 'original') == 'things_eeg' \
+                   else getattr(config, 'in_chans', 64)
         encoder = InceptSADEncoder(
             time_len=num_voxels,
-            in_chans=getattr(config, 'in_chans', 64),
+            in_chans=in_chans,
             embed_dim=config.embed_dim,
             depth=config.depth,
             num_heads=config.num_heads,
@@ -177,7 +207,7 @@ def main(config):
             ddim_steps=config.ddim_steps,
             global_pool=config.global_pool,
             use_clip_loss=config.clip_tune,
-            pretrained_encoder_weights=pretrain_mbm_metafile.get('model', None),
+            pretrained_encoder_weights=pretrain_mbm_metafile.get('model', None) if pretrain_mbm_metafile else None,
         )
         
         # Resume if checkpoint exists
