@@ -163,7 +163,7 @@ def create_things_dataset(processed_dir, subjects=None, image_size=512,
     
     for f in files_found:
         path = os.path.join(processed_dir, f)
-        saved = torch.load(path, weights_only=False)
+        saved = torch.load(path)
         data = saved['dataset']
         print(f"  {f}: {len(data)} epochs, {saved.get('n_channels', '?')} channels")
         all_data.extend(data)

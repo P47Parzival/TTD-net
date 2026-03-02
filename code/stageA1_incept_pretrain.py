@@ -94,8 +94,8 @@ def main():
     # Override defaults for InceptSAD pre-training
     config.mask_ratio = 0.5          # temporal masking ratio
     config.num_epoch = 200
-    config.batch_size = 64
-    config.lr = 1e-4
+    config.batch_size = 256
+    config.lr = 4e-4
     config.embed_dim = 1024
     config.depth = 6                 # transformer depth
     config.num_heads = 8
@@ -113,7 +113,7 @@ def main():
 
     # ── dataset ──
     data_path = '../dreamdiffusion/datasets/mne_data' # Update this to your converted .npy folder
-    data_limit = 501  # Set to None to use full dataset when you have GPU
+    data_limit = None  # Set to None to use full dataset when you have GPU
     
     dataset = eeg_pretrain_dataset(
         path=data_path,

@@ -1,4 +1,7 @@
 import os, sys
+# Set Hugging Face cache to D drive before any other imports
+os.environ['HF_HOME'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../dreamdiffusion/pretrains/huggingface')
+os.makedirs(os.environ['HF_HOME'], exist_ok=True)
 import numpy as np
 import torch
 import argparse
@@ -210,12 +213,7 @@ def main(config):
             pretrained_encoder_weights=pretrain_mbm_metafile.get('model', None) if pretrain_mbm_metafile else None,
         )
         
-        # Resume if checkpoint exists
-        if config.checkpoint_path is not None:
-            ckpt = torch.load(config.checkpoint_path, map_location='cpu')
-            generative_model.cond_model.load_state_dict(ckpt['cond_model'])
-            generative_model.unet.load_state_dict(ckpt['unet'])
-            print('SDXL model resumed from checkpoint')
+        # Resume is handled inside finetune() via config.checkpoint_path
         
         # Fine-tune
         generative_model.finetune(
@@ -312,7 +310,9 @@ if __name__ == '__main__':
     if config.checkpoint_path is not None:
         model_meta = torch.load(config.checkpoint_path, map_location='cpu')
         ckp = config.checkpoint_path
-        config = model_meta['config']
+        if 'config' in model_meta:
+            # SD 1.5 checkpoints store config; SDXL checkpoints don't (resume handled in finetune)
+            config = model_meta['config']
         config.checkpoint_path = ckp
         print('Resuming from checkpoint: {}'.format(config.checkpoint_path))
 

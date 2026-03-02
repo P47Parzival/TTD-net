@@ -137,11 +137,13 @@ class Config_Generative_Model:
         # finetune parameters
         # Batch size: smaller for SDXL + ThingsEEG (512x512 images, 32GB VRAM)
         if self.dataset_type == 'things_eeg' and self.model_type == 'sdxl':
-            self.batch_size = 4
+            self.batch_size = 4   # GV100 32GB can handle 4; compensated by grad accumulation
         else:
             self.batch_size = 5 if self.dataset == 'GOD' else 25
         self.lr = 5.3e-5
-        self.num_epoch = 500
+        self.num_epoch = 50     # Reduced from 500; effective BS=32 converges faster
+        self.gradient_accumulation_steps = 8  # Effective batch = 4 * 8 = 32
+        self.samples_per_epoch = 7500  # Halved for faster epochs; full data seen over many epochs
         
         self.precision = 32
         self.accumulate_grad = 1
@@ -159,7 +161,11 @@ class Config_Generative_Model:
         self.HW = None
         # resume check util
         self.model_meta = None
-        self.checkpoint_path = None 
+        self.checkpoint_path = None
+        
+        # WandB experiment tracking
+        self.wandb_project = 'eeg-to-image-sdxl'
+        self.wandb_run_name = None  # Auto-generated if None
 
 
 
